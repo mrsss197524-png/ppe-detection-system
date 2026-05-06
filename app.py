@@ -547,7 +547,7 @@ def main():
         st.subheader("📥 输入方式")
         source_type = st.radio(
             "选择输入源",
-            ["📷 图片上传", "🎥 摄像头拍照", "📁 批量图片"]
+            ["📷 图片上传", "🎥 实时摄像头", "🎬 视频文件检测", "📁 批量图片"]
         )
         
         # 重置按钮
@@ -677,41 +677,287 @@ def main():
             
             log(f"图片检测完成 - {detector.get_violation_summary(violations)}")
     
-    # ==================== 摄像头模式 ====================
-    elif source_type == "🎥 摄像头拍照":
-        st.subheader("🎥 摄像头实时拍照检测")
-        st.info("点击下方按钮打开摄像头拍照")
+    # ==================== 摄像头实时检测模式 ====================
+    elif source_type == "🎥 实时摄像头":
+        st.subheader("🎥 实时摄像头检测")
         
-        camera_photo = st.camera_input("📸 拍照检测")
+        # 控制面板
+        col_ctrl1, col_ctrl2 = st.columns([3, 1])
+        with col_ctrl1:
+            auto_refresh = st.checkbox("🔄 自动持续检测", value=True, help="开启后自动刷新摄像头画面")
+        with col_ctrl2:
+            if not auto_refresh:
+                manual_btn = st.button("📸 手动拍照检测", use_container_width=True, type="primary")
         
-        if camera_photo:
+        if auto_refresh:
+            refresh_interval = st.slider(
+                "刷新间隔(秒)", 
+                min_value=0.3, max_value=3.0, value=0.8, step=0.1,
+                help="越小越流畅但负载越高"
+            )
+            
+            # 使用时间戳作为key强制刷新
+            camera_key = f"live_camera_{int(time.time() * 10)}"
+        else:
+            camera_key = "manual_camera"
+        
+        camera_photo = st.camera_input(
+            "📸 允许浏览器访问摄像头",
+            key=camera_key,
+            label_visibility="collapsed" if auto_refresh else "visible"
+        )
+        
+        # 自动刷新机制
+        if auto_refresh:
+            if camera_photo is None:
+                # 等待摄像头画面
+                placeholder = st.empty()
+                placeholder.info("⏳ 等待摄像头画面...")
+                time.sleep(0.5)
+                placeholder.empty()
+                st.rerun()
+            
+            # 检测处理
             image = Image.open(camera_photo)
             img_bgr = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
             
-            with st.spinner("🔍 正在检测..."):
+            with st.spinner("🔍 检测中..."):
+                detect_start = time.time()
                 results, annotated, violations = detector.detect(img_bgr)
+                detect_time = (time.time() - detect_start) * 1000
                 annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
             
-            st.image(annotated_rgb, caption="🔍 检测结果", use_container_width=True)
+            # 结果展示
+            col_cam1, col_cam2 = st.columns([2, 1])
+            with col_cam1:
+                st.image(annotated_rgb, caption=f"🔍 实时检测 | 耗时: {detect_time:.0f}ms | FPS: ~{1/refresh_interval:.1f}", 
+                         use_container_width=True)
             
-            has_alert, alert_msg = alert_manager.check_and_alert(violations)
+            with col_cam2:
+                has_alert, alert_msg = alert_manager.check_and_alert(violations)
+                
+                # 违规状态
+                st.markdown("### 🚨 实时状态")
+                if violations:
+                    st.error(detector.get_violation_summary(violations))
+                    
+                    for v in violations:
+                        viol_color = v['color']
+                        st.markdown(f"""
+                        <div style="background-color:{viol_color}20; 
+                                    border-left:3px solid {viol_color}; 
+                                    padding:8px; margin:4px 0; border-radius:4px;">
+                            <strong>{v['icon']} {v['label']}</strong><br>
+                            <small>置信度: {v['confidence']:.1%}</small>
+                        </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.success("✅ 一切正常")
+                
+                # 统计
+                st.metric("检测目标数", len(results.boxes) if results.boxes else 0)
             
-            if violations:
-                st.error(detector.get_violation_summary(violations))
-                for v in violations:
-                    st.markdown(f"""
-                    <div class="violation-card">
-                        <span class="class-name">{v['icon']} {v['label']}</span><br>
-                        <span class="confidence">置信度: {v['confidence']:.2%}</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-            else:
-                st.success("✅ 所有人员穿戴合规")
+            log(f"实时检测: {detector.get_violation_summary(violations)} | {detect_time:.0f}ms")
             
-            if results.boxes is not None:
-                st.info(f"📊 共检测到 **{len(results.boxes)}** 个目标")
+            # 自动刷新
+            time.sleep(refresh_interval)
+            st.rerun()
+        
+        else:
+            # 手动模式
+            if camera_photo:
+                image = Image.open(camera_photo)
+                img_bgr = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+                
+                with st.spinner("🔍 正在检测..."):
+                    results, annotated, violations = detector.detect(img_bgr)
+                    annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+                
+                st.image(annotated_rgb, caption="🔍 检测结果", use_container_width=True)
+                
+                has_alert, alert_msg = alert_manager.check_and_alert(violations)
+                
+                if violations:
+                    st.error(detector.get_violation_summary(violations))
+                    for v in violations:
+                        st.markdown(f"""
+                        <div class="violation-card">
+                            <span class="class-name">{v['icon']} {v['label']}</span><br>
+                            <span class="confidence">置信度: {v['confidence']:.2%}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.success("✅ 所有人员穿戴合规")
+                
+                if results.boxes is not None:
+                    st.info(f"📊 共检测到 **{len(results.boxes)}** 个目标")
+                
+                log(f"摄像头拍照检测完成 - {detector.get_violation_summary(violations)}")
+    
+    # ==================== 视频文件检测模式 ====================
+    elif source_type == "🎬 视频文件检测":
+        st.subheader("🎬 视频文件检测")
+        st.info("💡 上传视频文件进行逐帧PPE检测，支持 MP4、AVI、MOV、MKV 格式")
+        
+        uploaded_video = st.file_uploader(
+            "选择视频文件",
+            type=["mp4", "avi", "mov", "mkv"],
+            help="支持常见视频格式"
+        )
+        
+        if uploaded_video:
+            # 保存上传的视频到临时文件
+            temp_video = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+            temp_video.write(uploaded_video.read())
+            temp_video_path = temp_video.name
+            temp_video.close()
             
-            log(f"摄像头检测完成 - {detector.get_violation_summary(violations)}")
+            # 读取视频信息
+            cap = cv2.VideoCapture(temp_video_path)
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            video_fps = cap.get(cv2.CAP_PROP_FPS)
+            video_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            video_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            duration = total_frames / video_fps if video_fps > 0 else 0
+            cap.release()
+            
+            # 视频信息展示
+            col_info1, col_info2, col_info3, col_info4 = st.columns(4)
+            with col_info1:
+                st.metric("总帧数", f"{total_frames:,}")
+            with col_info2:
+                st.metric("帧率", f"{video_fps:.1f} FPS")
+            with col_info3:
+                st.metric("分辨率", f"{video_width}x{video_height}")
+            with col_info4:
+                mins = int(duration // 60)
+                secs = int(duration % 60)
+                st.metric("时长", f"{mins}:{secs:02d}")
+            
+            # 检测设置
+            col_set1, col_set2 = st.columns(2)
+            with col_set1:
+                frame_skip = st.slider(
+                    "跳帧检测(每N帧检测1次)",
+                    min_value=1, max_value=30, value=5,
+                    help="值越大检测越快但可能漏检，1为逐帧检测"
+                )
+            with col_set2:
+                max_frames = st.number_input(
+                    "最大检测帧数",
+                    min_value=1, max_value=total_frames, 
+                    value=min(100, total_frames),
+                    help="限制检测帧数以控制处理时间"
+                )
+            
+            if st.button("▶️ 开始检测视频", type="primary", use_container_width=True):
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                result_container = st.empty()
+                
+                # 存放结果帧
+                result_frames = []
+                all_violations = []
+                frame_count = 0
+                processed = 0
+                
+                cap = cv2.VideoCapture(temp_video_path)
+                
+                while cap.isOpened() and processed < max_frames:
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+                    
+                    frame_count += 1
+                    
+                    # 跳帧
+                    if frame_count % frame_skip != 0:
+                        continue
+                    
+                    processed += 1
+                    
+                    # 检测
+                    results, annotated, violations = detector.detect(frame)
+                    all_violations.extend(violations)
+                    
+                    # 保存带违规的帧
+                    if violations:
+                        annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+                        result_frames.append({
+                            'frame_num': frame_count,
+                            'image': annotated_rgb,
+                            'violations': violations
+                        })
+                    
+                    # 更新进度
+                    progress = processed / max_frames
+                    progress_bar.progress(progress)
+                    status_text.text(f"⏳ 处理中... {processed}/{max_frames} 帧 ({progress*100:.0f}%)")
+                
+                cap.release()
+                
+                # 清理临时文件
+                try:
+                    os.unlink(temp_video_path)
+                except:
+                    pass
+                
+                # 完成
+                progress_bar.progress(1.0)
+                status_text.success(f"✅ 检测完成！共处理 {processed} 帧，发现违规 {len(all_violations)} 次")
+                
+                # 汇总统计
+                st.markdown("### 📊 检测汇总")
+                
+                col_r1, col_r2, col_r3, col_r4 = st.columns(4)
+                with col_r1:
+                    st.metric("处理帧数", processed)
+                with col_r2:
+                    st.metric("违规帧数", len(result_frames))
+                with col_r3:
+                    st.metric("总违规次数", len(all_violations))
+                with col_r4:
+                    violation_rate = len(result_frames) / max(processed, 1) * 100
+                    st.metric("违规率", f"{violation_rate:.1f}%")
+                
+                # 违规分布
+                if all_violations:
+                    violation_counts = defaultdict(int)
+                    for v in all_violations:
+                        violation_counts[v['label']] += 1
+                    
+                    st.write("**违规类型分布:**")
+                    cols = st.columns(len(violation_counts))
+                    for idx, (label, count) in enumerate(violation_counts.items()):
+                        with cols[idx]:
+                            st.metric(label, f"{count}次")
+                
+                # 显示违规帧结果
+                if result_frames:
+                    st.markdown(f"### 🖼 违规帧结果 (共 {len(result_frames)} 帧)")
+                    st.info("以下仅显示包含违规的帧")
+                    
+                    # 限制显示数量
+                    display_limit = min(len(result_frames), 20)
+                    cols_per_row = 2
+                    
+                    for i in range(0, display_limit, cols_per_row):
+                        cols = st.columns(cols_per_row)
+                        for j in range(cols_per_row):
+                            idx = i + j
+                            if idx < display_limit:
+                                rf = result_frames[idx]
+                                with cols[j]:
+                                    st.image(rf['image'], 
+                                             caption=f"第 {rf['frame_num']} 帧 | 违规: {len(rf['violations'])}个",
+                                             use_container_width=True)
+                    
+                    if len(result_frames) > display_limit:
+                        st.info(f"...还有 {len(result_frames) - display_limit} 帧未显示")
+                else:
+                    st.success("🎉 未检测到违规帧！")
+                
+                log(f"视频检测完成: {processed}帧, {len(result_frames)}帧违规")
     
     # ==================== 批量图片模式 ====================
     elif source_type == "📁 批量图片":
