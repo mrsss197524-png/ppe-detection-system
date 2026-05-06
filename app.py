@@ -28,37 +28,38 @@ st.markdown("""
 <style>
     /* 主背景 */
     .stApp {
-        background-color: #1e1e2e;
+        background-color: #ffffff;
     }
     
     /* 侧边栏 */
     [data-testid="stSidebar"] {
-        background-color: #181825;
+        background-color: #f8f9fa;
     }
     
     /* 卡片样式 */
     .stat-card {
-        background-color: #313244;
+        background-color: #ffffff;
         border-radius: 12px;
         padding: 20px;
         text-align: center;
-        border: 1px solid #45475a;
+        border: 1px solid #e0e0e0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     }
     .stat-card .value {
         font-size: 36px;
         font-weight: bold;
-        color: #89b4fa;
+        color: #2196F3;
     }
     .stat-card .label {
         font-size: 14px;
-        color: #a6adc8;
+        color: #666666;
         margin-top: 8px;
     }
     
     /* 告警样式 */
     .alert-normal {
-        background-color: #a6e3a1;
-        color: #1e1e2e;
+        background-color: #4CAF50;
+        color: #ffffff;
         padding: 16px;
         border-radius: 8px;
         font-size: 18px;
@@ -66,8 +67,8 @@ st.markdown("""
         text-align: center;
     }
     .alert-warning {
-        background-color: #f38ba8;
-        color: #1e1e2e;
+        background-color: #f44336;
+        color: #ffffff;
         padding: 16px;
         border-radius: 8px;
         font-size: 18px;
@@ -82,39 +83,39 @@ st.markdown("""
     
     /* 违规详情卡片 */
     .violation-card {
-        background-color: #313244;
-        border-left: 4px solid #f38ba8;
+        background-color: #fff5f5;
+        border-left: 4px solid #f44336;
         padding: 12px;
         margin: 8px 0;
         border-radius: 4px;
     }
     .violation-card .class-name {
         font-weight: bold;
-        color: #f38ba8;
+        color: #d32f2f;
         font-size: 16px;
     }
     .violation-card .confidence {
-        color: #a6adc8;
+        color: #666666;
         font-size: 14px;
     }
     
     /* 日志区域 */
     .log-container {
-        background-color: #11111b;
-        border: 1px solid #45475a;
+        background-color: #f5f5f5;
+        border: 1px solid #e0e0e0;
         border-radius: 8px;
         padding: 12px;
         max-height: 200px;
         overflow-y: auto;
         font-family: 'Courier New', monospace;
         font-size: 13px;
-        color: #a6e3a1;
+        color: #333333;
     }
     
     /* 按钮 */
     .stButton > button {
-        background-color: #89b4fa !important;
-        color: #1e1e2e !important;
+        background-color: #2196F3 !important;
+        color: #ffffff !important;
         border: none !important;
         padding: 8px 16px !important;
         border-radius: 6px !important;
@@ -122,7 +123,7 @@ st.markdown("""
         width: 100%;
     }
     .stButton > button:hover {
-        background-color: #b4befe !important;
+        background-color: #1976D2 !important;
     }
 </style>
 """, unsafe_allow_html=True)
